@@ -11,4 +11,12 @@ public class Setting {
 	private List<Integer> skipDays;
 	private int bigClubs;
 	private boolean skipAssociatedBig;
+	
+	// api-football.com
+	private String apiKey;
+	private String thisYearSeason;
+	private String previousYearSeason;
+	private String countryName;
+	private String mainLeagueName;
+	private String promotedFromLeagueName;
 }
