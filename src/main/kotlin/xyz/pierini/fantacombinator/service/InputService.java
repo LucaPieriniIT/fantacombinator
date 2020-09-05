@@ -23,6 +23,7 @@ import xyz.pierini.fantacombinator.model.input.CombinatorWrapper;
 import xyz.pierini.fantacombinator.model.input.Day;
 import xyz.pierini.fantacombinator.model.input.Match;
 import xyz.pierini.fantacombinator.model.input.Setting;
+import xyz.pierini.fantacombinator.utility.Utility;
 
 @Service
 public class InputService {
@@ -60,15 +61,23 @@ public class InputService {
 	}
 	
 	private boolean checkSetting(Setting setting) {
-		return true;
+		return setting != null
+				&& setting.getBigClubs() > 0
+				&& Utility.isNotEmpty(setting.getApiKey())
+				&& Utility.isNotEmpty(setting.getThisYearSeason())
+				&& Utility.isNotEmpty(setting.getPreviousYearSeason())
+				&& Utility.isNotEmpty(setting.getCountryName())
+				&& Utility.isNotEmpty(setting.getMainLeagueName())
+				//&& Utility.isNotEmpty(setting.getPromotedFromLeagueName())
+				;
 	}
 	
 	private List<Club> getClubs(Setting setting, List<Day> days) throws Exception {
 		List<Club> clubs = getFile(JSON_BASE_PATH + JSON_CLUBS_FILENAME, new TypeReference<List<Club>>() {});
-		if (!checkClub(clubs, setting)) {
+		if (!checkClub(clubs, days, setting)) {
 			// get from API
 			clubs = getClubsFromApiFootball(setting, days);
-			if (checkClub(clubs, setting)) {
+			if (checkClub(clubs, days, setting)) {
 				persistClubs(clubs);
 				return clubs;
 			}
@@ -77,16 +86,27 @@ public class InputService {
 		return clubs;
 	}
 
-	private boolean checkClub(List<Club> clubs, Setting setting) {
+	private boolean checkClub(List<Club> clubs, List<Day> days, Setting setting) {
+		if (Utility.isEmpty(clubs) || clubs.size() > setting.getBigClubs()) {
+			return false;
+		}
+		List<String> clubNames = clubs.stream().map(Club::getName).collect(Collectors.toList());
+		for (Day d : days) {
+			for (Match m : d.getMatches()) {
+				if (!clubNames.contains(m.getAway()) || !clubNames.contains(m.getHome())) {
+					return false;
+				}
+			}
+		}
 		return true;
 	}
 	
 	private List<Day> getCalendar(Setting setting) throws Exception {
 		List<Day> days = getFile(JSON_BASE_PATH + JSON_CALENDAR_FILENAME, new TypeReference<List<Day>>() {});
-		if (!checkCalendar(days, setting)) {
+		if (!checkCalendar(days)) {
 			// get from API
 			days = getCalendarFromApiFootball(setting);
-			if (checkCalendar(days, setting)) {
+			if (checkCalendar(days)) {
 				persistCalendar(days);
 				return days;
 			}
@@ -95,7 +115,20 @@ public class InputService {
 		return days;
 	}
 
-	private boolean checkCalendar(List<Day> days, Setting setting) {
+	private boolean checkCalendar(List<Day> days) {
+		if (Utility.isEmpty(days)) {
+			return false;
+		}
+		for (Day d : days) {
+			if (Utility.isEmpty(d.getMatches())) {
+				return false;
+			}
+			for (Match m : d.getMatches()) {
+				if (Utility.isEmpty(m.getAway()) || Utility.isEmpty(m.getHome())) {
+					return false;
+				}
+			}
+		}
 		return true;
 	}
 
