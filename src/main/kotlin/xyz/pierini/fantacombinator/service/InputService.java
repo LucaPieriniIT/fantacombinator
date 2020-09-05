@@ -12,8 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import xyz.pierini.fantacombinator.model.apifootball.Fixture;
@@ -28,7 +27,10 @@ import xyz.pierini.fantacombinator.model.input.Setting;
 @Service
 public class InputService {
 	
-	private final String JSON_WRAPPER_FILENAME = "fantacombinator.json";
+	private final String JSON_BASE_PATH = "fantacombinator/";
+	private final String JSON_SETTINGS_FILENAME = "settings.json";
+	private final String JSON_CALENDAR_FILENAME = "calendar.json";
+	private final String JSON_CLUBS_FILENAME = "clubs.json";
 	
 	private static final int DEFAULT_PROMOTED_WEIGHT = 30;
 
@@ -37,52 +39,111 @@ public class InputService {
 	
 	@Autowired
 	private ApiFootballService apiFootballService;
-
-	public CombinatorWrapper getCombinatorWrapper() throws JsonMappingException, JsonProcessingException {
-		InputStream is = getResourceFileAsInputStream(JSON_WRAPPER_FILENAME);
-		if (is != null) {
-			BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-			String json = (String) reader.lines().collect(Collectors.joining(System.lineSeparator()));
-			CombinatorWrapper rs = objectMapper.readValue(json, CombinatorWrapper.class);
-			if (areSettingsOk(rs)) {
-				if (true) {//rs.getDays() == null || rs.getDays().isEmpty()) {
-					rs.setDays(getCalendarFromApiFootball(rs.getSettings()));
-				}
-				if (true) {//rs.getClubs() == null || rs.getClubs().isEmpty()) {
-					rs.setClubs(getClubsFromApiFootball(rs));
-				}
-				return rs;
-			}
-			throw new RuntimeException("Settings not ok");
-		} else {
-			throw new RuntimeException("resource not found");
+	
+	public CombinatorWrapper getCombinatorWrapper() throws Exception {
+		try {
+			Setting setting = getSetting();
+			List<Day> days = getCalendar(setting);
+			List<Club> clubs = getClubs(setting, days);
+			return new CombinatorWrapper(setting, clubs, days);
+		} catch (Exception e) {
+			throw e;
 		}
 	}
-
-	private boolean areSettingsOk(CombinatorWrapper rs) {
-		// TODO check json
+	
+	private Setting getSetting() throws Exception {
+		Setting setting = getFile(JSON_BASE_PATH + JSON_SETTINGS_FILENAME, Setting.class);
+		if (!checkSetting(setting)) {
+			throw new Exception("Error checking settings file");
+		}
+		return setting;
+	}
+	
+	private boolean checkSetting(Setting setting) {
 		return true;
 	}
 	
-	private List<Club> getClubsFromApiFootball(CombinatorWrapper wrapper) {
-		List<League> leagues = apiFootballService.getLeaguesByCountryAndSeason(wrapper.getSettings().getApiKey(), wrapper.getSettings().getCountryName(), wrapper.getSettings().getPreviousYearSeason());
+	private List<Club> getClubs(Setting setting, List<Day> days) throws Exception {
+		List<Club> clubs = getFile(JSON_BASE_PATH + JSON_CLUBS_FILENAME, new TypeReference<List<Club>>() {});
+		if (!checkClub(clubs, setting)) {
+			// get from API
+			clubs = getClubsFromApiFootball(setting, days);
+			if (checkClub(clubs, setting)) {
+				persistClubs(clubs);
+				return clubs;
+			}
+			throw new Exception("Error getting clubs");
+		}
+		return clubs;
+	}
+
+	private boolean checkClub(List<Club> clubs, Setting setting) {
+		return true;
+	}
+	
+	private List<Day> getCalendar(Setting setting) throws Exception {
+		List<Day> days = getFile(JSON_BASE_PATH + JSON_CALENDAR_FILENAME, new TypeReference<List<Day>>() {});
+		if (!checkCalendar(days, setting)) {
+			// get from API
+			days = getCalendarFromApiFootball(setting);
+			if (checkCalendar(days, setting)) {
+				persistCalendar(days);
+				return days;
+			}
+			throw new Exception("Error getting clubs");
+		}
+		return days;
+	}
+
+	private boolean checkCalendar(List<Day> days, Setting setting) {
+		return true;
+	}
+
+	private <T> T getFile(String fileName, Class<T> clazz) throws Exception {
+		return objectMapper.readValue(baseReadFile(fileName), clazz);
+	}
+	
+	private <T> T getFile(String fileName, TypeReference<T> valueTypeRef) throws Exception {
+		return objectMapper.readValue(baseReadFile(fileName), valueTypeRef);
+	}
+	
+	private String baseReadFile(String fileName) throws Exception {
+		ClassLoader classLoader = this.getClass().getClassLoader();
+		InputStream is = classLoader.getResourceAsStream(fileName);
+		if (is == null) {
+			throw new Exception("File " + fileName + " not found");
+		}
+		BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+		String json = (String) reader.lines().collect(Collectors.joining(System.lineSeparator()));
+		if (json == null) {
+			throw new RuntimeException("File " + fileName + " not found!");
+		}
+		return json;
+	}
+	
+	private List<Club> getClubsFromApiFootball(Setting setting, List<Day> days) {
+		List<League> leagues = apiFootballService.getLeaguesByCountryAndSeason(
+				setting.getApiKey(),
+				setting.getCountryName(),
+				setting.getPreviousYearSeason()
+				);
 		Integer mainLeagueId = null;
 		//Integer promotedFromLeagueId = null;
 		for (League league : leagues) {
-			if (league.getName().equals(wrapper.getSettings().getMainLeagueName())) {
+			if (league.getName().equals(setting.getMainLeagueName())) {
 				mainLeagueId = league.getLeague_id();
 			}/* else if (league.getName().equals(wrapper.getSettings().getPromotedFromLeagueName())) {
 				promotedFromLeagueId = league.getLeague_id();
 			}*/
 		}
 		if (mainLeagueId == null) {
-			throw new RuntimeException("Main league not found in previous year " + wrapper.getSettings().getMainLeagueName());
+			throw new RuntimeException("Main league not found in previous year " + setting.getMainLeagueName());
 		}
-		List<Standing> mainLeagueStandings = apiFootballService.getLeagueTableByLeagueId(wrapper.getSettings().getApiKey(), mainLeagueId);
+		List<Standing> mainLeagueStandings = apiFootballService.getLeagueTableByLeagueId(setting.getApiKey(), mainLeagueId);
 		
 		List<Club> clubs = new ArrayList<>();
 		// spero che tutte giochino in tutte le giornate...
-		for (Match match : wrapper.getDays().get(0).getMatches()) {
+		for (Match match : days.get(0).getMatches()) {
 			Club clubHome = new Club(match.getHome(), DEFAULT_PROMOTED_WEIGHT);
 			Club clubAway = new Club(match.getAway(), DEFAULT_PROMOTED_WEIGHT);
 			for (Standing standing : mainLeagueStandings) {
@@ -99,11 +160,6 @@ public class InputService {
 			return o1.getWeight() > o2.getWeight() ? -1 : 1;
 		});
 		return clubs;
-	}
-
-	private static InputStream getResourceFileAsInputStream(String fileName) {
-		ClassLoader classLoader = CombinatorService.class.getClassLoader();
-		return classLoader.getResourceAsStream(fileName);
 	}
 	
 	private List<Day> getCalendarFromApiFootball(Setting settings) {
@@ -149,6 +205,16 @@ public class InputService {
 			return o1.getNumber() > o2.getNumber() ? 1 : -1;
 		});
 		return rs;
+	}
+	
+	private void persistClubs(List<Club> clubs) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	private void persistCalendar(List<Day> days) {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

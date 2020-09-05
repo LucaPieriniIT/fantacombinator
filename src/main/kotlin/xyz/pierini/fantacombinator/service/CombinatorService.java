@@ -10,9 +10,6 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-
 import xyz.pierini.fantacombinator.enums.CombinationTypeEnum;
 import xyz.pierini.fantacombinator.model.input.Club;
 import xyz.pierini.fantacombinator.model.input.CombinatorWrapper;
@@ -31,7 +28,7 @@ public class CombinatorService {
 	@Autowired
 	private TripletService tripletService;
 
-	public void init() throws JsonMappingException, JsonProcessingException {
+	public void init() throws Exception {
 		CombinatorWrapper input = inputService.getCombinatorWrapper();
 		List<String> bigClubs = getBigClubs(input);
 		
@@ -140,16 +137,11 @@ public class CombinatorService {
 	}
 
 	private boolean shouldDayBeSkipped(Day d, CombinatorWrapper input) {
-		/*if (input.getSettings() == null || input.getSettings().getSkipDays() == null || input.getSettings().getSkipDays().size() == 0) {
+		List<Integer> skipDays = input.getSettings().getSkipDays();
+		if (skipDays == null || skipDays.isEmpty()) {
 			return false;
 		}
-		if (d.getNumber() <= input.getDays().get(input.getDays().size() -1).getNumber()) {
-			// sono entro il girone d'andata
-			return input.getSettings().getSkipDays().contains(d.getNumber());
-		}
-		// girone di ritorno
-		*/
-		return false;
+		return skipDays.contains(d.getNumber());
 	}
 
 	private List<AssociatedClub> addMissingClubs(List<AssociatedClub> bestClubs, String myName, List<Club> clubs) {

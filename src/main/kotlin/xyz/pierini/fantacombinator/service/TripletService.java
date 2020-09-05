@@ -33,7 +33,7 @@ public class TripletService {
 		 * uso i set per evitare duplicati
 		 */
 		List<String> needTriplets = whoNeedTriplets(mergedOutput, bigClubs);
-		if (needTriplets.size() == 0) {
+		if (needTriplets.isEmpty()) {
 			return null;
 		}
 		getTripletsMaps(needTriplets, input, bigClubs);
@@ -51,7 +51,7 @@ public class TripletService {
 					List<Integer> bigDaysDiff = new ArrayList<>(bigDaysForThisClub);
 					bigDaysDiff.retainAll(bigDaysForSecondClub);
 					
-					if (bigDaysDiff.size() == 0) {
+					if (bigDaysDiff.isEmpty()) {
 						// bah, mi pare strano perchè dovrei averle escluse prima, però si sa mai...
 						/*Set<String> singleTriplet = new HashSet<>();
 						singleTriplet.add(club);
@@ -69,12 +69,12 @@ public class TripletService {
 								List<Integer> bigDaysIntermediateDiff2 = new ArrayList<>(bigDaysForSecondClub);
 								bigDaysIntermediateDiff2.retainAll(bigDaysForThirdClub);
 								
-								if (bigDaysIntermediateDiff1.size() != 0 && bigDaysIntermediateDiff2.size() != 0) {
+								if (!bigDaysIntermediateDiff1.isEmpty() && !bigDaysIntermediateDiff2.isEmpty()) {
 									List<Integer> bigDaysFinalDiff = new ArrayList<>(bigDaysForThisClub);
 									bigDaysFinalDiff.retainAll(bigDaysForSecondClub);
 									bigDaysFinalDiff.retainAll(bigDaysForThirdClub);
 									if (	
-											bigDaysFinalDiff.size() == 0 &&
+											bigDaysFinalDiff.isEmpty() &&
 											!bigClubs.contains(secondClub) &&
 											!bigClubs.contains(thirdClub)
 											) {

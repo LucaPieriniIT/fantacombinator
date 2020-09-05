@@ -1,0 +1,82 @@
+[
+  {
+    "name": "ATA",
+    "weight": 98
+  },
+  {
+    "name": "INT",
+    "weight": 81
+  },
+  {
+    "name": "LAZ",
+    "weight": 79
+  },
+  {
+    "name": "ROM",
+    "weight": 77
+  },
+  {
+    "name": "JUV",
+    "weight": 76
+  },
+  {
+    "name": "SAS",
+    "weight": 59
+  },
+  {
+    "name": "MIL",
+    "weight": 63
+  },
+  {
+    "name": "NAP",
+    "weight": 61
+  },
+  {
+    "name": "PAR",
+    "weight": 56
+  },
+  {
+    "name": "BOL",
+    "weight": 52
+  },
+  {
+    "name": "CAG",
+    "weight": 52
+  },
+  {
+    "name": "FIO",
+    "weight": 51
+  },
+  {
+    "name": "SAM",
+    "weight": 48
+  },
+  {
+    "name": "VER",
+    "weight": 47
+  },
+  {
+    "name": "GEN",
+    "weight": 47
+  },
+  {
+    "name": "TOR",
+    "weight": 46
+  },
+  {
+    "name": "UDI",
+    "weight": 37
+  },
+  {
+    "name": "BEN",
+    "weight": 34
+  },
+  {
+    "name": "CRO",
+    "weight": 32
+  },
+  {
+    "name": "SPE",
+    "weight": 27
+  }
+]
