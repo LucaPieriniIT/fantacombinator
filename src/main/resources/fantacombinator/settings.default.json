@@ -1,0 +1,16 @@
+{
+  "skipDays": [
+    1,
+    2,
+    3,
+    38
+  ],
+  "skipAssociatedBig": true,
+  "bigClubs": 7,
+  "apiKey": "INSERT API-KEY HERE",
+  "thisYearSeason": "2020",
+  "previousYearSeason": "2019",
+  "countryName": "Italy",
+  "mainLeagueName": "Serie A",
+  "promotedFromLeagueName": "Serie B"
+}
