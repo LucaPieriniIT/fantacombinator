@@ -1,3 +1,5 @@
-/calendar.json
-/clubs.json
-/settings.json
+*
+
+!/calendar.default.json
+!/clubs.default.json
+!/settings.default.json
