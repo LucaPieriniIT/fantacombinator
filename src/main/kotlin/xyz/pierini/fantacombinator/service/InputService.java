@@ -302,26 +302,28 @@ public class InputService {
 		}
 		// ne manca più di uno, verifico la somiglianza delle stringhe
 		for (Club c : clubs) {
-			String mostSimilarClubName = null;
-			Double similarityValue = 0.0;
-			for (Map.Entry<String, BigDecimal> mapEntry : mapForecast.entrySet()) {
-				double d = similarity(mapEntry.getKey(), c.getName());
-				if (d > similarityValue) {
-					similarityValue = d;
-					mostSimilarClubName = mapEntry.getKey();
+			if (c.getWeight() == null) {
+				String mostSimilarClubName = null;
+				Double similarityValue = 0.0;
+				for (Map.Entry<String, BigDecimal> mapEntry : mapForecast.entrySet()) {
+					double d = similarity(mapEntry.getKey(), c.getName());
+					if (d > similarityValue) {
+						similarityValue = d;
+						mostSimilarClubName = mapEntry.getKey();
+					}
 				}
-			}
-			if (mostSimilarClubName == null) {
-				// qualcosa è andato storto...
-				return null;
-			}
-			c.setWeight(mapForecast.get(mostSimilarClubName));
-			mapForecast.remove(mostSimilarClubName);
-			if (mapForecast.size() == 1) {
-				for (Club c1 : clubs) {
-					if (c1.getWeight() == null) {
-						c1.setWeight(mapForecast.entrySet().iterator().next().getValue());
-						return clubs;
+				if (mostSimilarClubName == null) {
+					// qualcosa è andato storto...
+					return null;
+				}
+				c.setWeight(mapForecast.get(mostSimilarClubName));
+				mapForecast.remove(mostSimilarClubName);
+				if (mapForecast.size() == 1) {
+					for (Club c1 : clubs) {
+						if (c1.getWeight() == null) {
+							c1.setWeight(mapForecast.entrySet().iterator().next().getValue());
+							return clubs;
+						}
 					}
 				}
 			}
