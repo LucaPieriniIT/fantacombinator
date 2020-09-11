@@ -3,6 +3,7 @@ package xyz.pierini.fantacombinator.service;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,8 @@ import xyz.pierini.fantacombinator.model.input.CombinatorWrapper;
 import xyz.pierini.fantacombinator.model.input.Day;
 import xyz.pierini.fantacombinator.model.input.Match;
 import xyz.pierini.fantacombinator.model.input.Setting;
+import xyz.pierini.fantacombinator.model.spiratings.SpiForecast;
+import xyz.pierini.fantacombinator.model.spiratings.SpiTeam;
 import xyz.pierini.fantacombinator.utility.Utility;
 
 @Service
@@ -33,13 +36,16 @@ public class InputService {
 	private final String JSON_CALENDAR_FILENAME = "calendar.json";
 	private final String JSON_CLUBS_FILENAME = "clubs.json";
 	
-	private static final int DEFAULT_PROMOTED_WEIGHT = 30;
+	private static final BigDecimal DEFAULT_PROMOTED_WEIGHT = new BigDecimal(30);
 
 	@Autowired
 	private ObjectMapper objectMapper;
 	
 	@Autowired
 	private ApiFootballService apiFootballService;
+	
+	@Autowired
+	private SpiForecastService spiForecastService;
 	
 	public CombinatorWrapper getCombinatorWrapper() throws Exception {
 		try {
@@ -73,12 +79,21 @@ public class InputService {
 	}
 	
 	private List<Club> getClubs(Setting setting, List<Day> days) throws Exception {
-		List<Club> clubs = getFile(JSON_BASE_PATH + JSON_CLUBS_FILENAME, new TypeReference<List<Club>>() {});
+		List<Club> clubs;
+		try {
+			clubs = getFile(JSON_BASE_PATH + JSON_CLUBS_FILENAME, new TypeReference<List<Club>>() {});
+		} catch (Exception e) {
+			clubs = null;
+		}
 		if (!checkClub(clubs, days, setting)) {
+			// get from Days + SPI ratings
+			clubs = getFromDaysAndSpiRatings(setting, days);
+			if (checkClub(clubs, days, setting)) {
+				return clubs;
+			}
 			// get from API
 			clubs = getClubsFromApiFootball(setting, days);
 			if (checkClub(clubs, days, setting)) {
-				persistClubs(clubs);
 				return clubs;
 			}
 			throw new Exception("Error getting clubs");
@@ -87,7 +102,7 @@ public class InputService {
 	}
 
 	private boolean checkClub(List<Club> clubs, List<Day> days, Setting setting) {
-		if (Utility.isEmpty(clubs) || clubs.size() > setting.getBigClubs()) {
+		if (Utility.isEmpty(clubs) || clubs.size() < setting.getBigClubs()) {
 			return false;
 		}
 		List<String> clubNames = clubs.stream().map(Club::getName).collect(Collectors.toList());
@@ -102,12 +117,16 @@ public class InputService {
 	}
 	
 	private List<Day> getCalendar(Setting setting) throws Exception {
-		List<Day> days = getFile(JSON_BASE_PATH + JSON_CALENDAR_FILENAME, new TypeReference<List<Day>>() {});
+		List<Day> days;
+		try {
+			days = getFile(JSON_BASE_PATH + JSON_CALENDAR_FILENAME, new TypeReference<List<Day>>() {});
+		} catch (Exception e) {
+			days = null;
+		}
 		if (!checkCalendar(days)) {
 			// get from API
 			days = getCalendarFromApiFootball(setting);
 			if (checkCalendar(days)) {
-				persistCalendar(days);
 				return days;
 			}
 			throw new Exception("Error getting clubs");
@@ -181,16 +200,16 @@ public class InputService {
 			Club clubAway = new Club(match.getAway(), DEFAULT_PROMOTED_WEIGHT);
 			for (Standing standing : mainLeagueStandings) {
 				if (standing.getTeamName().equals(clubHome.getName())) {
-					clubHome.setWeight(standing.getAll().getGoalsFor());
+					clubHome.setWeight(new BigDecimal(standing.getAll().getGoalsFor()));
 				} else if (standing.getTeamName().equals(clubAway.getName())) {
-					clubAway.setWeight(standing.getAll().getGoalsFor());
+					clubAway.setWeight(new BigDecimal(standing.getAll().getGoalsFor()));
 				}
 			}
 			clubs.add(clubHome);
 			clubs.add(clubAway);
 		}
 		clubs.sort((o1, o2) -> {
-			return o1.getWeight() > o2.getWeight() ? -1 : 1;
+			return o1.getWeight().compareTo(o2.getWeight()) * -1;
 		});
 		return clubs;
 	}
@@ -240,14 +259,129 @@ public class InputService {
 		return rs;
 	}
 	
-	private void persistClubs(List<Club> clubs) {
-		// TODO Auto-generated method stub
-		
+	private List<Club> getFromDaysAndSpiRatings(Setting setting, List<Day> days) {
+		SpiForecast forecast = spiForecastService.getLeaguesByCountryAndSeason(setting.getThisYearSeason(), setting.getMainLeagueName());
+		if (forecast.getTeams().size() != days.get(0).getMatches().size() * 2) {
+			return null;
+		}
+		// problema: api-football e fivethirtyeight scrivono i nomi delle squadre in modo diverso (ad es. Inter -> Internazionale)
+		// assegno i pesi a quelle con il nome più simile, per le altre verifico la somiglianza della stringa.......
+		Map<String, BigDecimal> mapForecast = forecast.getTeams().stream().collect(Collectors.toMap(SpiTeam::getName, SpiTeam::getGlobalRating));
+		// ottengo una lista di club dalla prima giornata
+		List<Club> clubs = new ArrayList<>();
+		for (Match match : days.get(0).getMatches()) {
+			// TODO refactor...
+			BigDecimal weightHome = null;
+			if (mapForecast.containsKey(match.getHome())) {
+				weightHome = mapForecast.get(match.getHome());
+				mapForecast.remove(match.getHome());
+			}
+			BigDecimal weightAway = null;
+			if (mapForecast.containsKey(match.getAway())) {
+				weightAway = mapForecast.get(match.getAway());
+				mapForecast.remove(match.getAway());
+			}
+			Club clubHome = new Club(match.getHome(), weightHome);
+			Club clubAway = new Club(match.getAway(), weightAway);
+			clubs.add(clubHome);
+			clubs.add(clubAway);
+		}
+		// sono stati mappati tutti
+		if (mapForecast.size() == 0) {
+			return clubs;
+		}
+		// qualcuno non è stato mappato...
+		// se è uno solo, lo assegno alla squadra che manca, altrimenti verifico la somiglianza delle stringhe
+		if (mapForecast.size() == 1) {
+			for (Club c : clubs) {
+				if (c.getWeight() == null) {
+					c.setWeight(mapForecast.entrySet().iterator().next().getValue());
+					return clubs;
+				}
+			}
+		}
+		// ne manca più di uno, verifico la somiglianza delle stringhe
+		for (Club c : clubs) {
+			String mostSimilarClubName = null;
+			Double similarityValue = 0.0;
+			for (Map.Entry<String, BigDecimal> mapEntry : mapForecast.entrySet()) {
+				double d = similarity(mapEntry.getKey(), c.getName());
+				if (d > similarityValue) {
+					similarityValue = d;
+					mostSimilarClubName = mapEntry.getKey();
+				}
+			}
+			if (mostSimilarClubName == null) {
+				// qualcosa è andato storto...
+				return null;
+			}
+			c.setWeight(mapForecast.get(mostSimilarClubName));
+			mapForecast.remove(mostSimilarClubName);
+			if (mapForecast.size() == 1) {
+				for (Club c1 : clubs) {
+					if (c1.getWeight() == null) {
+						c1.setWeight(mapForecast.entrySet().iterator().next().getValue());
+						return clubs;
+					}
+				}
+			}
+		}
+		if (mapForecast.size() > 0) {
+			return null;
+		}
+		return clubs;
 	}
-	
-	private void persistCalendar(List<Day> days) {
-		// TODO Auto-generated method stub
-		
+
+	// https://stackoverflow.com/a/16018452
+	/**
+	 * Calculates the similarity (a number within 0 and 1) between two strings.
+	 */
+	public static double similarity(String s1, String s2) {
+		String longer = s1, shorter = s2;
+		if (s1.length() < s2.length()) { // longer should always have greater length
+			longer = s2;
+			shorter = s1;
+		}
+		int longerLength = longer.length();
+		if (longerLength == 0) {
+			return 1.0;
+			/* both strings are zero length */ }
+		/*
+		 * // If you have Apache Commons Text, you can use it to calculate the edit
+		 * distance: LevenshteinDistance levenshteinDistance = new
+		 * LevenshteinDistance(); return (longerLength -
+		 * levenshteinDistance.apply(longer, shorter)) / (double) longerLength;
+		 */
+		return (longerLength - editDistance(longer, shorter)) / (double) longerLength;
+
+	}
+
+	// Example implementation of the Levenshtein Edit Distance
+	// See http://rosettacode.org/wiki/Levenshtein_distance#Java
+	public static int editDistance(String s1, String s2) {
+		s1 = s1.toLowerCase();
+		s2 = s2.toLowerCase();
+
+		int[] costs = new int[s2.length() + 1];
+		for (int i = 0; i <= s1.length(); i++) {
+			int lastValue = i;
+			for (int j = 0; j <= s2.length(); j++) {
+				if (i == 0)
+					costs[j] = j;
+				else {
+					if (j > 0) {
+						int newValue = costs[j - 1];
+						if (s1.charAt(i - 1) != s2.charAt(j - 1))
+							newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+						costs[j - 1] = lastValue;
+						lastValue = newValue;
+					}
+				}
+			}
+			if (i > 0)
+				costs[s2.length()] = lastValue;
+		}
+		return costs[s2.length()];
 	}
 
 }

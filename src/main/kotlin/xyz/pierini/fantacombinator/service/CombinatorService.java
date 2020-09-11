@@ -1,5 +1,6 @@
 package xyz.pierini.fantacombinator.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,14 +51,14 @@ public class CombinatorService {
 		for (ClubOutput co : bigMatchesCombination.getClubs()) {
 			co.getBestClubs().sort((o1, o2) -> {
 				if (o1.getAssociatedValue() != o2.getAssociatedValue()) {
-					return Integer.valueOf(o1.getAssociatedValue()).compareTo(o2.getAssociatedValue());
+					return o1.getAssociatedValue().compareTo(o2.getAssociatedValue());
 				} else {
 					// parità! controllo in weightCombination
 					String o1Club = o1.getName();
 					String o2Club = o2.getName();
 					ClubOutput cow = weightCombination.getClubs().stream().filter((c) -> c.getName().equals(co.getName())).findFirst().get();
-					Integer o1Weight = cow.getBestClubs().stream().filter((bc) -> bc.getName().equals(o1Club)).findFirst().get().getAssociatedValue();
-					Integer o2Weight = cow.getBestClubs().stream().filter((bc) -> bc.getName().equals(o2Club)).findFirst().get().getAssociatedValue();
+					BigDecimal o1Weight = cow.getBestClubs().stream().filter((bc) -> bc.getName().equals(o1Club)).findFirst().get().getAssociatedValue();
+					BigDecimal o2Weight = cow.getBestClubs().stream().filter((bc) -> bc.getName().equals(o2Club)).findFirst().get().getAssociatedValue();
 					if (o1Weight == null || o2Weight == null) {
 						// non dovrebbe mai succedere...
 						return 0;
@@ -127,10 +128,10 @@ public class CombinatorService {
 		
 		if (combinationType == CombinationTypeEnum.BIG_MATCHES) {
 			if (bigClubs.contains(against)) {
-				bestClubs = updateBestClubs(bestClubs, myName, 1, d.getNumber());
+				bestClubs = updateBestClubs(bestClubs, myName, new BigDecimal(1), d.getNumber());
 			}
 		} else if (combinationType == CombinationTypeEnum.WEIGHT) {
-			int weight = getWeightByName(against, input.getClubs());
+			BigDecimal weight = getWeightByName(against, input.getClubs());
 			bestClubs = updateBestClubs(bestClubs, myName, weight, null);
 		}
 		return bestClubs;
@@ -157,17 +158,17 @@ public class CombinatorService {
 					}
 				}
 				if (!found) {
-					bestClubs.add(new AssociatedClub(c.getName(), 0, null));
+					bestClubs.add(new AssociatedClub(c.getName(), new BigDecimal(0), null));
 				}
 			}
 		}
 		return bestClubs;
 	}
 
-	private List<AssociatedClub> updateBestClubs(List<AssociatedClub> bestClubs, String name, int weight, Integer dayNumber) {
+	private List<AssociatedClub> updateBestClubs(List<AssociatedClub> bestClubs, String name, BigDecimal weight, Integer dayNumber) {
 		for (AssociatedClub ac : bestClubs) {
 			if (ac.getName().equals(name)) {
-				ac.setAssociatedValue(ac.getAssociatedValue() + weight);
+				ac.setAssociatedValue(ac.getAssociatedValue().add(weight));
 				ac = addDayNumber(dayNumber, ac);
 				return bestClubs;
 			}
@@ -192,7 +193,7 @@ public class CombinatorService {
 		return ac;
 	}
 
-	private int getWeightByName(String name, List<Club> clubs) {
+	private BigDecimal getWeightByName(String name, List<Club> clubs) {
 		return clubs.stream().filter(c -> c.getName().equals(name)).findFirst().get().getWeight();
 	}
 

@@ -1,5 +1,6 @@
 package xyz.pierini.fantacombinator.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -166,13 +167,13 @@ public class TripletService {
 			if (!bigClubs.contains(co.getName())) {
 				// servirebbero dei check, ma tant'è...
 				AssociatedClub ac = co.getBestClubs().get(0);
-				if (ac.getAssociatedValue() > 0) {
+				if (ac.getAssociatedValue().compareTo(new BigDecimal(0)) == 1) {
 					rs.add(co.getName());
 				} else {
 					// verifico tra gli 0 che non si tratti di big...
 					boolean nonBigWith0Matches = false;
 					for (AssociatedClub c : co.getBestClubs()) {
-						if (c.getAssociatedValue() == 0 && !bigClubs.contains(c.getName())) {
+						if (c.getAssociatedValue().equals(new BigDecimal(0)) && !bigClubs.contains(c.getName())) {
 							nonBigWith0Matches = true;
 						}
 					}

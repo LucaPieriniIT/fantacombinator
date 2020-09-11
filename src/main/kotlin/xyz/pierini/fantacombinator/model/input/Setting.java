@@ -18,5 +18,4 @@ public class Setting {
 	private String previousYearSeason;
 	private String countryName;
 	private String mainLeagueName;
-	private String promotedFromLeagueName;
 }
